@@ -10,16 +10,16 @@ pub struct FormData {
     name: String,
 }
 
+#[tracing::instrument(
+    name = "Add a new subscriber",
+    skip(form, pool),
+    fields(
+        request_id = %Uuid::new_v4(),
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
+    )
+)]
 pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> HttpResponse {
-    let request_id = Uuid::new_v4();
-    let request_span = tracing::info_span!(
-        "Adding a new subscriber.",
-        %request_id,
-        subscribe_email = %form.email,
-        subscribe_name = %form.name
-    );
-    let _requst_span_guard = request_span.enter();
-
     let query_span = tracing::info_span!("Saving new subscriber details in the database");
     match sqlx::query!(
         r#"
@@ -38,11 +38,7 @@ pub async fn subscribe(form: web::Form<FormData>, pool: web::Data<PgPool>) -> Ht
         Ok(_) => HttpResponse::Ok().finish(),
 
         Err(e) => {
-            tracing::error!(
-                "request_id {} - Failed to execute query: {:?}",
-                request_id,
-                e
-            );
+            tracing::error!("Failed to execute query: {:?}", e);
             HttpResponse::InternalServerError().finish()
         }
     }
